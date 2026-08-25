@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.env
+venv/
+.env.*
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+Pipfile.lock
+*.sqlite3
+.vscode/
+.DS_Store
+*.log
+docker-compose.override.yml
