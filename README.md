@@ -50,26 +50,39 @@ The final API will look roughly like this:
                              │ HTTP + JSON
                              ▼
                     ┌─────────────────┐
-                    │    FastAPI      │
-                    │                 │
-                    │ Routers         │
-                    │ Dependencies    │
-                    │ JWT Auth        │
-                    │ Validation      │
+                    │  Interface      │
+                    │  (API Routes)   │
+                    │  deps.py        │
                     └────────┬────────┘
                              │
                              ▼
                     ┌─────────────────┐
-                    │    SQLModel     │
-                    │   ORM layer     │
+                    │  Application    │
+                    │  (Services)     │
+                    │  AuthService    │
+                    │  TodoService    │
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │  Domain         │
+                    │  (Entities)     │
+                    │  Value Objects  │
+                    │  Repository ABCs│
+                    └────────┬────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │  Infrastructure │
+                    │  (Repos + DB)   │
+                    │  SQLUserRepo    │
+                    │  SQLTodoRepo    │
                     └────────┬────────┘
                              │
                              ▼
                     ┌─────────────────┐
                     │   PostgreSQL    │
-                    │                 │
-                    │ users           │
-                    │ todos           │
+                    │   users/todos   │
                     └─────────────────┘
 ```
 
@@ -323,44 +336,51 @@ Create this structure:
 fastapi-crud/
 │
 ├── app/
-│   ├── __init__.py
 │   ├── main.py
 │   │
 │   ├── core/
-│   │   ├── __init__.py
 │   │   ├── config.py
 │   │   └── security.py
 │   │
-│   ├── db/
-│   │   ├── __init__.py
-│   │   └── session.py
+│   ├── domain/                 # Domain Layer - core business logic
+│   │   ├── user/
+│   │   │   ├── entity.py       # User entity (pure, no DB dependency)
+│   │   │   ├── value_objects.py # Email, Username, Password
+│   │   │   └── repository.py   # UserRepository interface (ABC)
+│   │   └── todo/
+│   │       ├── entity.py       # Todo entity
+│   │       ├── value_objects.py # TodoTitle, TodoDescription
+│   │       └── repository.py   # TodoRepository interface (ABC)
 │   │
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── user.py
-│   │   └── todo.py
+│   ├── application/            # Application Layer - use cases
+│   │   ├── user/
+│   │   │   ├── service.py      # UserService
+│   │   │   └── dto.py          # CreateUserDTO, UserResponseDTO
+│   │   ├── todo/
+│   │   │   ├── service.py      # TodoService
+│   │   │   └── dto.py          # CreateTodoDTO, TodoResponseDTO
+│   │   └── auth/
+│   │       ├── service.py      # AuthService
+│   │       └── dto.py          # LoginDTO, TokenDTO
 │   │
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   ├── auth.py
-│   │   ├── user.py
-│   │   └── todo.py
+│   ├── infrastructure/         # Infrastructure Layer - DB implementations
+│   │   ├── db/
+│   │   │   ├── models.py       # SQLModel DB models (UserTable, TodoTable)
+│   │   │   └── session.py      # Database engine & session
+│   │   └── repositories/
+│   │       ├── user_repository.py   # SQLUserRepository
+│   │       └── todo_repository.py   # SQLTodoRepository
 │   │
-│   ├── api/
-│   │   ├── __init__.py
-│   │   ├── deps.py
-│   │   └── routes/
-│   │       ├── __init__.py
-│   │       ├── auth.py
-│   │       ├── users.py
-│   │       └── todos.py
-│   │
-│   └── services/
-│       ├── __init__.py
-│       ├── auth.py
-│       └── todos.py
+│   └── api/                    # Interface Layer - HTTP
+│       ├── deps.py             # Dependency injection
+│       └── routes/
+│           ├── auth.py
+│           ├── users.py
+│           └── todos.py
 │
 ├── migrations/
+├── docs/
+│   └── ddd-guide-fa.html       # DDD guide in Farsi (RTL)
 │
 ├── .env
 ├── .gitignore
@@ -370,25 +390,19 @@ fastapi-crud/
 └── uv.lock
 ```
 
-This might initially look like overkill.
-
-It's not.
-
-The important separation is:
+This follows the **Domain-Driven Design (DDD)** pattern with four layers:
 
 ```text
-routes
-   ↓
-services
-   ↓
-database
+Interface (API Routes)
+        ↓
+Application (Services + DTOs)
+        ↓
+Domain (Entities + Value Objects + Repository Interfaces)
+        ↓
+Infrastructure (Repository Implementations + DB Models)
 ```
 
-Instead of putting everything into:
-
-```text
-main.py
-```
+The key principle: **Domain has zero dependencies on other layers**. Infrastructure implements what Domain defines.
 
 ---
 
@@ -2941,69 +2955,88 @@ That's safer because we don't reveal the existence or ownership of resources the
 
 ---
 
-# 75. A more complete production architecture
+# 75. The DDD architecture
 
-Once the application grows, I'd evolve it toward:
+This project follows **Domain-Driven Design (DDD)** with four layers:
 
 ```text
 app/
 │
-├── main.py
+├── domain/                 # Layer 1: Domain (core, zero dependencies)
+│   ├── user/
+│   │   ├── entity.py       # User entity with behavior
+│   │   ├── value_objects.py # Email, Username, Password (validated)
+│   │   └── repository.py   # UserRepository interface (ABC)
+│   └── todo/
+│       ├── entity.py       # Todo entity with behavior
+│       ├── value_objects.py # TodoTitle, TodoDescription
+│       └── repository.py   # TodoRepository interface (ABC)
 │
-├── core/
-│   ├── config.py
-│   ├── security.py
-│   └── logging.py
+├── application/            # Layer 2: Application (orchestration)
+│   ├── user/
+│   │   ├── service.py      # UserService (use cases)
+│   │   └── dto.py          # CreateUserDTO, UserResponseDTO
+│   ├── todo/
+│   │   ├── service.py      # TodoService
+│   │   └── dto.py          # CreateTodoDTO, TodoResponseDTO
+│   └── auth/
+│       ├── service.py      # AuthService
+│       └── dto.py          # LoginDTO, TokenDTO
 │
-├── db/
-│   ├── session.py
-│   └── models.py
+├── infrastructure/         # Layer 3: Infrastructure (implementations)
+│   ├── db/
+│   │   ├── models.py       # SQLModel DB models
+│   │   └── session.py      # Database engine & session
+│   └── repositories/
+│       ├── user_repository.py   # SQLUserRepository
+│       └── todo_repository.py   # SQLTodoRepository
 │
-├── models/
-│   ├── user.py
-│   └── todo.py
-│
-├── schemas/
-│   ├── auth.py
-│   ├── user.py
-│   └── todo.py
-│
-├── api/
-│   ├── deps.py
-│   └── routes/
-│
-├── services/
-│
-└── repositories/
+└── api/                    # Layer 4: Interface (HTTP)
+    ├── deps.py             # Dependency injection
+    └── routes/
 ```
-
-You don't need repositories immediately.
-
-Start simple.
 
 ---
 
 # 76. Where each piece belongs
 
-A useful mental model:
+### `domain/`
 
-### `models/`
-
-Database representation.
+Business rules and entities.
 
 ```text
-What does the database store?
+What are the core concepts?
+What rules must always be true?
 ```
 
-### `schemas/`
+Entities have **behavior** (methods), not just data.
 
-API input/output representation.
+Value objects are **immutable** and **validated**.
+
+### `application/`
+
+Use cases and orchestration.
 
 ```text
-What does the API accept/return?
+What should the application do?
+How do we coordinate domain objects?
 ```
 
-### `routes/`
+Services use repository interfaces, never implementations.
+
+DTOs transfer data between layers.
+
+### `infrastructure/`
+
+Database and external service implementations.
+
+```text
+How do we actually store/retrieve data?
+```
+
+Repository implementations translate between domain entities and DB models.
+
+### `api/`
 
 HTTP layer.
 
@@ -3011,37 +3044,14 @@ HTTP layer.
 What URL does the client call?
 ```
 
-### `services/`
-
-Business logic.
-
-```text
-What should the application do?
-```
+Routes are thin — they just delegate to application services.
 
 ### `core/`
 
-Infrastructure/security/configuration.
+Cross-cutting concerns.
 
 ```text
-How is the application configured?
-How is authentication implemented?
-```
-
-### `db/`
-
-Database infrastructure.
-
-```text
-How do we connect to PostgreSQL?
-```
-
-### `deps.py`
-
-Reusable FastAPI dependencies.
-
-```text
-How do endpoints obtain sessions/users/etc.?
+Configuration, security utilities, JWT, password hashing
 ```
 
 ---
@@ -3297,31 +3307,53 @@ Otherwise credentials/tokens can be exposed in transit.
 
 # 86. What we have accomplished
 
-At this point, the architecture is:
+At this point, the architecture follows DDD:
 
 ```text
-                         FastAPI
-                            │
-                ┌───────────┴───────────┐
-                │                       │
-             Auth API               Todo API
-                │                       │
-         ┌──────┴──────┐          JWT dependency
-         │             │                 │
-      Register       Login               │
-         │             │                 │
-         ▼             ▼                 ▼
-      Argon2       verify password   current user
-         │             │                 │
-         └──────┬──────┘                 │
-                │                        │
-                └──────────┬─────────────┘
-                           │
-                           ▼
-                       SQLModel
-                           │
-                           ▼
-                      PostgreSQL
+                     ┌──────────────────┐
+                     │   Interface      │
+                     │   (API Routes)   │
+                     │                  │
+                     │  auth.py         │
+                     │  users.py        │
+                     │  todos.py        │
+                     └────────┬─────────┘
+                              │
+                              ▼
+                     ┌──────────────────┐
+                     │   Application    │
+                     │   (Services)     │
+                     │                  │
+                     │  AuthService     │
+                     │  UserService     │
+                     │  TodoService     │
+                     └────────┬─────────┘
+                              │
+                              ▼
+                     ┌──────────────────┐
+                     │     Domain       │
+                     │   (Entities)     │
+                     │                  │
+                     │  User entity     │
+                     │  Todo entity     │
+                     │  Value Objects   │
+                     │  Repository ABCs │
+                     └────────┬─────────┘
+                              │
+                              ▼
+                     ┌──────────────────┐
+                     │  Infrastructure  │
+                     │ (Repositories)   │
+                     │                  │
+                     │  SQLUserRepo     │
+                     │  SQLTodoRepo     │
+                     │  DB Models       │
+                     └────────┬─────────┘
+                              │
+                              ▼
+                     ┌──────────────────┐
+                     │   PostgreSQL     │
+                     └──────────────────┘
 ```
 
 And:
@@ -3498,30 +3530,44 @@ fastapi-crud/
 │   │   ├── config.py
 │   │   └── security.py
 │   │
-│   ├── db/
-│   │   └── session.py
+│   ├── domain/
+│   │   ├── user/
+│   │   │   ├── entity.py
+│   │   │   ├── value_objects.py
+│   │   │   └── repository.py
+│   │   └── todo/
+│   │       ├── entity.py
+│   │       ├── value_objects.py
+│   │       └── repository.py
 │   │
-│   ├── models/
-│   │   ├── user.py
-│   │   └── todo.py
+│   ├── application/
+│   │   ├── user/
+│   │   │   ├── service.py
+│   │   │   └── dto.py
+│   │   ├── todo/
+│   │   │   ├── service.py
+│   │   │   └── dto.py
+│   │   └── auth/
+│   │       ├── service.py
+│   │       └── dto.py
 │   │
-│   ├── schemas/
-│   │   ├── auth.py
-│   │   ├── user.py
-│   │   └── todo.py
+│   ├── infrastructure/
+│   │   ├── db/
+│   │   │   ├── models.py
+│   │   │   └── session.py
+│   │   └── repositories/
+│   │       ├── user_repository.py
+│   │       └── todo_repository.py
 │   │
-│   ├── api/
-│   │   ├── deps.py
-│   │   └── routes/
-│   │       ├── auth.py
-│   │       ├── users.py
-│   │       └── todos.py
-│   │
-│   └── services/
-│       └── todos.py
+│   └── api/
+│       ├── deps.py
+│       └── routes/
+│           ├── auth.py
+│           ├── users.py
+│           └── todos.py
 │
 ├── migrations/
-│   └── versions/
+├── docs/
 │
 ├── .env
 ├── .gitignore
@@ -3537,38 +3583,47 @@ That is a very reasonable foundation for a real FastAPI backend.
 
 ## The key takeaway
 
-The important architecture isn't really "FastAPI + JWT + PostgreSQL."
-
-It's this:
+The important architecture is **Domain-Driven Design (DDD)**:
 
 ```text
-                    ┌───────────────┐
-                    │    Router     │
-                    │ HTTP concern  │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │ Dependencies  │
-                    │ Auth / Session │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │    Service    │
-                    │ Business logic│
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │   SQLModel    │
-                    │     ORM       │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │  PostgreSQL   │
-                    └───────────────┘
+┌─────────────────────────────────────────────┐
+│              Interface Layer                │
+│         (API Routes + Dependencies)         │
+│                                             │
+│   Receives HTTP request                     │
+│   Validates with DTOs                       │
+│   Delegates to Application Service          │
+└──────────────────────┬──────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────┐
+│            Application Layer                │
+│         (Services + DTOs)                   │
+│                                             │
+│   Orchestrates use cases                    │
+│   Uses Domain entities                      │
+│   Calls Repository interfaces               │
+└──────────────────────┬──────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────┐
+│              Domain Layer                   │
+│    (Entities + Value Objects + ABCs)        │
+│                                             │
+│   Business rules live here                  │
+│   Zero external dependencies                │
+│   Fully testable in isolation               │
+└──────────────────────┬──────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────┐
+│           Infrastructure Layer              │
+│    (Repository Implementations + DB)        │
+│                                             │
+│   Implements repository interfaces          │
+│   Translates entities ↔ DB models           │
+│   Handles SQL/PostgreSQL                    │
+└─────────────────────────────────────────────┘
 ```
 
 with authentication running as a dependency:
