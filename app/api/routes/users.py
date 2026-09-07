@@ -1,11 +1,11 @@
 from fastapi import APIRouter
 
-from app.api.deps import CurrentUser
-from app.schemas.user import UserPublic
+from app.api.deps import CurrentUser, UserServiceDep
+from app.application.user.dto import UserResponseDTO
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.get("/me", response_model=UserPublic)
+@router.get("/me", response_model=UserResponseDTO)
 def get_me(current_user: CurrentUser):
-    return current_user
+    return UserResponseDTO.from_domain(current_user)
