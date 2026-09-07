@@ -4,7 +4,7 @@ from alembic import context
 from sqlmodel import SQLModel
 
 from app.core.config import settings
-from app.models import Todo, User  # noqa: F401
+from app.infrastructure.db.models import TodoTable as Todo, UserTable as User  # noqa: F401
 
 config = context.config
 
